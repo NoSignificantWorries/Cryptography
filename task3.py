@@ -7,6 +7,8 @@
 
 from collections.abc import Generator
 
+from task1 import decrypted_message
+
 TABLE = [
     [1, 13, 4, 6, 7, 5, 14, 4],
     [15, 11, 11, 12, 13, 8, 11, 10],
@@ -44,7 +46,7 @@ class Bytestring:
         for b1, b2 in zip(self.bins, other.bins):
             b1 = bool(int(b1))
             b2 = bool(int(b2))
-            result += "1" if b1 or b2 else "0"
+            result += "1" if b1 ^ b2 else "0"
         new_string = Bytestring()
         new_string.bins = result
         new_string.size = len(result)
@@ -103,22 +105,80 @@ class Bytestring:
 
 
 def func(r: Bytestring, key: Bytestring):
-    r_sum = r + key
-
-    r_sum_int = r_sum.to_int()
-    r_sum_int_mod = r_sum_int % MOD
-    r_sum_mod = r_sum.from_int(r_sum_int_mod)
+    s = (r.to_int() + key.to_int()) % MOD
+    r_sum_mod = Bytestring()
+    r_sum_mod.size = 32
+    r_sum_mod.from_int(s)
 
     new_r = Bytestring()
+    new_r.size = 0
     for i, block in enumerate(r_sum_mod.iter_bits(step=4)):
         t = TABLE[block.to_int()][i]
-        new_block = block.from_int(t)
+        new_block = Bytestring()
+        new_block.size = 4
+        new_block.from_int(t)
         new_r.concat(new_block)
 
     return new_r
 
 
 # One way
+def gost_round(block: Bytestring, sub_key: Bytestring, swap: bool = True) -> Bytestring:
+    l = block.get_substring(0, 32)
+    r = block.get_substring(32, 64)
+
+    f = func(r, sub_key)
+    new_l = l + f
+
+    if swap:
+        result = r.concat(new_l)
+    else:
+        result = new_l.concat(r)
+    return result
+
+
+def gost_round_inverse(block: Bytestring, sub_key: Bytestring) -> Bytestring:
+    l_prime = block.get_substring(0, 32)
+    r_prime = block.get_substring(32, 64)
+
+    f_val = func(l_prime, sub_key)
+    l = r_prime + f_val
+
+    result = Bytestring()
+    result = l.concat(l_prime)
+    return result
+
+
+def split_key(key_array: Bytestring) -> list[Bytestring]:
+    return [key_array.get_substring(i * 32, (i + 1) * 32) for i in range(8)]
+
+
+def round_keys_encrypt(sub_keys: list[Bytestring]) -> list[Bytestring]:
+    return sub_keys * 3 + sub_keys[::-1]
+
+
+def round_keys_decrypt(sub_keys: list[Bytestring]) -> list[Bytestring]:
+    return round_keys_encrypt(sub_keys)[::-1]
+
+
+def gost_encrypt(block, key_array):
+    sub_keys = split_key(key_array)
+    keys = round_keys_encrypt(sub_keys)
+    for i, k in enumerate(keys):
+        last = (i == 31)
+        block = gost_round(block, k, swap=not last)
+    return block
+
+
+def gost_decrypt(block, key_array):
+    sub_keys = split_key(key_array)
+    keys = round_keys_decrypt(sub_keys)
+    for i, k in enumerate(keys):
+        last = (i == 31)
+        block = gost_round(block, k, swap=not last)
+    return block
+
+
 msg = "Karpachev Dmitry"
 msg_array = Bytestring(msg)
 print(msg_array)
@@ -127,15 +187,25 @@ key = "Space cat's love beautiful soup!"
 key_array = Bytestring(key)
 print(key_array)
 
-l0, r0 = msg_array.get_substring(0, 32), msg_array.get_substring(32, 64)
-print(l0, r0)
+subkeys = split_key(key_array)
 
-sub_key = key_array.get_substring(0, 32)
+encrypt_keys = round_keys_encrypt(subkeys)
 
-f1 = func(r0, sub_key)
-print("f1:", f1)
-r1 = f1.shift_cycle_left(11)
-print("r1:", r1)
-
+sub_key = encrypt_keys[0]
+print(sub_key)
+one_round = gost_round(msg_array.get_substring(0, 64), sub_key)
+print(one_round)
 
 # Second way
+decrypt_keys = round_keys_decrypt(subkeys)
+decrypted_round = gost_round_inverse(one_round, sub_key)
+print(decrypted_round)
+print(decrypted_round.to_ascii())
+
+print("\n")
+print(msg_array.get_substring(0, 64))
+encrypted_msg = gost_encrypt(msg_array.get_substring(0, 64), key_array)
+print(encrypted_msg)
+decrypted_msg = gost_decrypt(encrypted_msg, key_array)
+print(decrypted_msg)
+print(decrypted_msg.to_ascii())
