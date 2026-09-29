@@ -1,13 +1,13 @@
-message = "Карпачев Дмитрий"
+message = "Karpachev Dmitry"
 
-p, q = 17, 19
-n = p * q
 
-h = 30
-conv = [h]
-for m in message:
-    m_ascii = ord(m)
-    h = (h + m_ascii) ** 2 % n
-    conv.append(h)
+def hash_function(p, q, message) -> int:
+    n = p * q
+    h = 32
+    for m in message:
+        m_ascii = ord(m)
+        h = (h + m_ascii) ** 2 % n
+    return h
 
-print(sum(conv))
+
+print(hash_function(17, 19, message))

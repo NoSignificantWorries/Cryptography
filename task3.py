@@ -202,6 +202,7 @@ decrypted_round = gost_round_inverse(one_round, sub_key)
 print(decrypted_round)
 print(decrypted_round.to_ascii())
 
+# encrypt decrypt
 print("\n")
 print(msg_array.get_substring(0, 64))
 encrypted_msg = gost_encrypt(msg_array.get_substring(0, 64), key_array)
